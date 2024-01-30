@@ -1,0 +1,51 @@
+name: Scan
+
+on:
+  workflow_call:
+    inputs:
+      branch_regex:
+        required: false
+        type: string
+        default: "(20[0-9]{4}).*" # Two variables ?
+
+
+jobs:
+  get_branches:
+    runs-on: ubuntu-22.04
+    outputs:
+      branches_matrix: ${{ steps.set-branches-matrix.outputs.branches_matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # with all branches
+      - id: set-branches-matrix
+        run: |
+          branches_array=()
+          regex="^(20[0-9]{4}).*"
+          echo $(git branch --format "%(refname:short)")
+          echo "==============================="
+          echo $(git branch --remotes --format "%(refname:lstrip=3)")
+          git_branches=$(git branch --format "%(refname:short)")
+          # git_branches=$(git branch -r --format "%(refname:lstrip=3)")
+          branches_array=()
+          for line in $git_branches; do
+              if [[ $line =~ $regex ]]
+              then
+                  branches_array+=("${BASH_REMATCH[2]}")
+              fi
+          done
+          printf -v joined '%s,' "${branches_array[@]}"
+          csv="${joined%,}"
+          echo "$csv"
+          json_branches_array=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${branches_array[@]}")
+
+          echo "branches_matrix=$(jq -cn --argjson environments "$json_branches_array" '{target: $environments}')" >> $GITHUB_OUTPUT
+  
+  run-matrix:
+    needs: get_branches
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.get_branches.outputs.branches_matrix) }}
+    steps:
+      - run: echo ${{matrix.target}}
+      - run: echo ${{inputs.branch_regex}}
