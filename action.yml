@@ -1,0 +1,24 @@
+name: 'Hello World'
+description: 'Greet someone'
+inputs:
+  who:  # id of input
+    description: 'Who to greet'
+    required: true
+    default: 'World'
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        git branch -r | grep 'origin/20.*' | while read -r line; do
+            first_of_month=$(date -d $(date +%Y%m01) +%s)
+            branch_name=$(echo $line | cut -c 8-)
+            branch_date=$(date -d "$(echo $branch_name | cut -c 1-6)01" +%s)
+            difference_in_days=$(( ($first_of_month - $branch_date) / (60 * 60 * 24) ))
+            
+            if [ $difference_in_days -lt $((31 * 4)) ]; then
+                echo "Running dependencies scan for branch $branch_name"
+                # gh workflow run build.yml -r test-1 -f my_var="$branch_name"
+            fi
+        done
+        gh workflow run build.yml -r test-3 -f branch="master"
+        gh workflow run build.yml -r test-3 -f branch="test-3"
